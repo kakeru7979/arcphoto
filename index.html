@@ -309,7 +309,16 @@ function tsToDate(ts){var d=new Date(ts);return d.getFullYear()+'-'+('0'+(d.getM
 function getGroupKey(item){return tsToDate(item.ts)+'_'+(item.customerName||'(미완료)');}
 var faceLandmarks = null;
 var faceMesh = null;
-var FACE_OVAL_IDX = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
+// Face contour: eyebrow arches as top boundary instead of hairline (landmark 10)
+// Right brow arch outer→inner (screen-left), bridge glabella, left brow inner→outer (screen-right)
+// then face oval for cheeks/jaw/chin
+var FACE_OVAL_IDX = [
+  336, 296, 334, 293, 300,                                             // right brow arch
+  70,  63,  105, 66,  107,                                             // left brow arch
+  54,  21,  162, 127, 234, 93, 132, 58, 172, 136, 150, 149, 176, 148, // left face → jaw
+  152,                                                                  // chin
+  377, 400, 378, 379, 365, 397, 288, 361, 323, 454, 356, 389, 251, 284 // jaw → right face
+];
 
 function loadOrders() {
   try { var d=localStorage.getItem('arcphoto_orders'); if(d) state.orders=JSON.parse(d); } catch(e){}
@@ -440,29 +449,33 @@ function buildFaceMask(vw,vh,s) {
   if(!faceLandmarks||!faceLandmarks.length) return null;
   var iw=state.img.nw, ih=state.img.nh;
   var sx=vw/s.cw, sy=vh/s.ch;
-  var inner=document.createElement('canvas');
-  inner.width=vw; inner.height=vh;
-  var ic=inner.getContext('2d');
+  // Hard polygon fill
+  var hard=document.createElement('canvas');
+  hard.width=vw; hard.height=vh;
+  var hc=hard.getContext('2d');
   faceLandmarks.forEach(function(lms){
-    ic.fillStyle='white';
-    ic.beginPath();
+    hc.fillStyle='white';
+    hc.beginPath();
     FACE_OVAL_IDX.forEach(function(idx,i){
       var px=(lms[idx].x*iw-s.ox)*sx;
       var py=(lms[idx].y*ih-s.oy)*sy;
-      i===0?ic.moveTo(px,py):ic.lineTo(px,py);
+      i===0?hc.moveTo(px,py):hc.lineTo(px,py);
     });
-    ic.closePath();
-    ic.fill();
+    hc.closePath();
+    hc.fill();
   });
-  var blurPx=Math.max(6,Math.round(Math.min(vw,vh)*0.03));
-  var outer=document.createElement('canvas');
-  outer.width=vw; outer.height=vh;
-  var oc=outer.getContext('2d');
-  oc.filter='blur('+blurPx+'px)';
-  oc.drawImage(inner,0,0);
-  var data=oc.getImageData(0,0,vw,vh).data;
+  // Blur for feathering (smaller radius to avoid hair spill)
+  var blurPx=Math.max(4,Math.round(Math.min(vw,vh)*0.018));
+  var soft=document.createElement('canvas');
+  soft.width=vw; soft.height=vh;
+  var sc=soft.getContext('2d');
+  sc.filter='blur('+blurPx+'px)';
+  sc.drawImage(hard,0,0);
+  // Inward feathering: clamp blur to hard polygon boundary (no outward hair spill)
+  var sd=sc.getImageData(0,0,vw,vh).data;
+  var hd=hc.getImageData(0,0,vw,vh).data;
   var mask=new Float32Array(vw*vh);
-  for(var i=0;i<mask.length;i++) mask[i]=data[i*4]/255;
+  for(var i=0;i<mask.length;i++) mask[i]=(sd[i*4]/255)*(hd[i*4]/255);
   return mask;
 }
 
