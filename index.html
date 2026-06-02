@@ -105,6 +105,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .btn-del { padding: 6px 10px; font-size: 12px; border-radius: 8px; border: 1px solid #E8EEF0; background: #FFFDF5; color: #FF4D6D; cursor: pointer; }
 #seller-empty { text-align: center; margin-top: 80px; color: #88A8B0; }
 
+/* 비밀번호 모달 */
+#pw-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: none; align-items: center; justify-content: center; }
+#pw-box { background: #FFFDF5; border-radius: 20px; padding: 32px 28px; width: 300px; max-width: 88vw; box-shadow: 0 8px 40px rgba(0,0,0,0.18); text-align: center; }
+#pw-input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #E8EEF0; font-size: 14px; outline: none; background: #fff; margin-bottom: 8px; }
+#pw-input:focus { border-color: #6BBFD4; }
+#pw-error { display: none; font-size: 12px; color: #FF4D6D; margin-bottom: 4px; }
+
 /* 토스트 */
 #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2A3A40; color: #fff; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 600; z-index: 999; display: none; white-space: nowrap; }
 </style>
@@ -124,7 +131,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   </div>
   <div id="mode-btns">
     <button class="mode-btn active" onclick="setMode('customer')">고객</button>
-    <button class="mode-btn" onclick="setMode('seller')">판매자</button>
+    <button class="mode-btn" onclick="trySellerMode()">판매자</button>
   </div>
 </div>
 
@@ -237,6 +244,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
   </div>
   <div id="seller-grid"></div>
   <div id="seller-empty" style="display:none;text-align:center;margin-top:80px;color:#88A8B0"><div style="font-size:40px;margin-bottom:12px">📭</div><p>아직 담긴 주문이 없습니다</p></div>
+</div>
+
+<!-- 판매자 비밀번호 모달 -->
+<div id="pw-modal">
+  <div id="pw-box">
+    <div style="font-size:16px;font-weight:800;color:#2A3A40;margin-bottom:6px">판매자 확인</div>
+    <div style="font-size:13px;color:#88A8B0;margin-bottom:20px">비밀번호를 입력해 주세요</div>
+    <input type="password" id="pw-input" placeholder="비밀번호" onkeydown="if(event.key==='Enter')confirmPw()">
+    <div id="pw-error">비밀번호가 틀렸습니다</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="closePwModal()" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #E8EEF0;background:#FFFDF5;color:#88A8B0;font-size:14px;font-weight:600;cursor:pointer">취소</button>
+      <button onclick="confirmPw()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#6BBFD4;color:#fff;font-size:14px;font-weight:700;cursor:pointer">확인</button>
+    </div>
+  </div>
 </div>
 
 <div id="toast"></div>
@@ -624,6 +645,28 @@ document.getElementById('upload-zone').addEventListener('click', function(e) {
     if(file) handleFile({files:[file]});
   });
 })();
+
+// 판매자 비밀번호
+function trySellerMode() {
+  var modal=document.getElementById('pw-modal');
+  modal.style.display='flex';
+  document.getElementById('pw-input').value='';
+  document.getElementById('pw-error').style.display='none';
+  setTimeout(function(){document.getElementById('pw-input').focus();},50);
+}
+function closePwModal() {
+  document.getElementById('pw-modal').style.display='none';
+}
+function confirmPw() {
+  if(document.getElementById('pw-input').value==='arcphoto2026'){
+    closePwModal();
+    setMode('seller');
+  } else {
+    document.getElementById('pw-error').style.display='block';
+    document.getElementById('pw-input').value='';
+    document.getElementById('pw-input').focus();
+  }
+}
 
 loadOrders(); renderCart(); setMode('customer');
 </script>
