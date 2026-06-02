@@ -132,6 +132,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 /* 토스트 */
 #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2A3A40; color: #fff; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 600; z-index: 999; display: none; white-space: nowrap; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -303,6 +304,8 @@ var RATIOS = [
 var UPSCALE = 2;
 var state = { img:null, ri:0, ox:0, oy:0, zoom:1, tone:{br:0,wa:0,sk:0,so:0}, orders:[] };
 var groupOpen = {};
+function tsToDate(ts){var d=new Date(ts);return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
+function getGroupKey(item){return tsToDate(item.ts)+'_'+(item.customerName||'(미완료)');}
 var FACE_PROXY_URL = '/.netlify/functions/faceDetect';
 var faceRects = null;
 
@@ -591,19 +594,20 @@ function renderSeller() {
   document.getElementById('seller-empty').style.display=cnt===0?'block':'none';
   var groupMap={}, groupOrder=[];
   state.orders.forEach(function(item){
-    var key=item.customerName||'(미완료)';
+    var key=getGroupKey(item);
     if(!groupMap[key]){groupMap[key]=[];groupOrder.push(key);}
     groupMap[key].push(item);
   });
+  groupOrder.sort(function(a,b){return b.localeCompare(a);});
   var html='';
-  groupOrder.forEach(function(name){
-    var items=groupMap[name];
-    var open=groupOpen[name]!==false;
-    var esc=name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  groupOrder.forEach(function(key){
+    var items=groupMap[key];
+    var open=groupOpen[key]!==false;
+    var esc=key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     html+='<div class="order-group">';
     html+='<div class="order-group-header" onclick="toggleGroup(\''+esc+'\')">';
     html+='<span class="order-group-toggle">'+(open?'▼':'▶')+'</span>';
-    html+='<span class="order-group-name">'+name+'</span>';
+    html+='<span class="order-group-name">📁 '+key+'</span>';
     html+='<span class="order-group-cnt">'+items.length+'장</span>';
     html+='<div class="group-actions" onclick="event.stopPropagation()">';
     html+='<button class="g-btn-dl" onclick="dlGroup(\''+esc+'\')">전체 저장</button>';
@@ -618,30 +622,41 @@ function renderSeller() {
   document.getElementById('seller-grid').innerHTML=html;
 }
 
-function toggleGroup(name) {
-  groupOpen[name]=groupOpen[name]===false?true:false;
+function toggleGroup(key) {
+  groupOpen[key]=groupOpen[key]===false?true:false;
   renderSeller();
 }
 
-function dlGroup(name) {
-  var items=state.orders.filter(function(i){return (i.customerName||'(미완료)')===name;});
-  items.forEach(function(item,i){setTimeout(function(){dlItem(item.id);},i*400);});
+function dlGroup(key) {
+  var items=state.orders.filter(function(i){return getGroupKey(i)===key;});
+  if(!items.length) return;
+  var zip=new JSZip();
+  items.forEach(function(item,idx){
+    var idxStr=('000'+(idx+1)).slice(-3);
+    zip.file(item.ratio.replace(':','x')+'_'+idxStr+'.png', item.thumb.split(',')[1], {base64:true});
+  });
+  zip.generateAsync({type:'blob'}).then(function(blob){
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download='arcphoto_'+key+'.zip';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  });
 }
 
-function delGroup(name) {
-  state.orders=state.orders.filter(function(i){return (i.customerName||'(미완료)')!==name;});
+function delGroup(key) {
+  state.orders=state.orders.filter(function(i){return getGroupKey(i)!==key;});
   saveOrders(); renderCart(); renderSeller();
 }
 
 function dlItem(id) {
   var item=state.orders.find(function(i){return i.id===id;}); if(!item) return;
-  var name=item.customerName||'';
-  var groupItems=state.orders.filter(function(i){return (i.customerName||'')=== name;});
+  var key=getGroupKey(item);
+  var groupItems=state.orders.filter(function(i){return getGroupKey(i)===key;});
   var idx=1;
   for(var j=0;j<groupItems.length;j++){if(groupItems[j].id===id){idx=j+1;break;}}
   var idxStr=('000'+idx).slice(-3);
-  var namePart=name?name+'_':'';
-  var filename='arcphoto_'+namePart+item.ratio.replace(':','x')+'_'+idxStr+'.png';
+  var filename='arcphoto_'+key+'_'+item.ratio.replace(':','x')+'_'+idxStr+'.png';
   var mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if(mobile){
     var w=window.open();
