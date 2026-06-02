@@ -359,28 +359,39 @@ function drawCanvas() {
 }
 
 function detectFaces() {
-  if(!state.img||!FACE_PROXY_URL) return;
+  if(!state.img) { console.log('[face] no image, skip'); return; }
+  if(!FACE_PROXY_URL) { console.log('[face] FACE_PROXY_URL not set, skip'); return; }
+  console.log('[face] start — proxy:', FACE_PROXY_URL, '| img:', state.img.nw+'x'+state.img.nh, '| UA:', navigator.userAgent);
   faceRects = null;
   var MAX=1024, iw=state.img.nw, ih=state.img.nh;
   var scale=Math.min(1,MAX/Math.max(iw,ih));
   var tw=Math.round(iw*scale), th=Math.round(ih*scale);
+  console.log('[face] resized to', tw+'x'+th, '(scale='+scale+')');
   var tmp=document.createElement('canvas'); tmp.width=tw; tmp.height=th;
   tmp.getContext('2d').drawImage(state.img.el,0,0,tw,th);
   var b64=tmp.toDataURL('image/jpeg',0.85).split(',')[1];
+  console.log('[face] fetch POST', FACE_PROXY_URL, '— b64 length:', b64.length);
   fetch(FACE_PROXY_URL,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({image:b64})
   })
-  .then(function(r){return r.ok?r.json():Promise.reject(r.status);})
+  .then(function(r){
+    console.log('[face] response status:', r.status, r.ok ? 'OK' : 'ERROR');
+    return r.ok ? r.json() : r.text().then(function(t){ return Promise.reject('HTTP '+r.status+': '+t); });
+  })
   .then(function(rects){
+    console.log('[face] faces detected:', rects.length, rects);
     var inv=1/scale;
     faceRects=rects.map(function(r){
       return{top:r.top*inv,left:r.left*inv,width:r.width*inv,height:r.height*inv};
     });
     drawCanvas();
   })
-  .catch(function(){faceRects=null;drawCanvas();});
+  .catch(function(e){
+    console.error('[face] error:', e);
+    faceRects=null; drawCanvas();
+  });
 }
 
 function buildFaceMask(vw,vh,s) {
