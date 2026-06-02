@@ -133,6 +133,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2A3A40; color: #fff; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 600; z-index: 999; display: none; white-space: nowrap; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
@@ -306,8 +307,9 @@ var state = { img:null, ri:0, ox:0, oy:0, zoom:1, tone:{br:0,wa:0,sk:0,so:0}, or
 var groupOpen = {};
 function tsToDate(ts){var d=new Date(ts);return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);}
 function getGroupKey(item){return tsToDate(item.ts)+'_'+(item.customerName||'(미완료)');}
-var FACE_PROXY_URL = '/.netlify/functions/faceDetect';
-var faceRects = null;
+var faceLandmarks = null;
+var faceMesh = null;
+var FACE_OVAL_IDX = [10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377,152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109];
 
 function loadOrders() {
   try { var d=localStorage.getItem('arcphoto_orders'); if(d) state.orders=JSON.parse(d); } catch(e){}
@@ -416,66 +418,51 @@ function drawCanvas() {
   document.getElementById('viewer-badge').textContent=s.cw+'×'+s.ch+' ('+r.label+')';
 }
 
-function detectFaces() {
-  if(!state.img) { console.log('[face] no image, skip'); return; }
-
-  if(!FACE_PROXY_URL) { console.log('[face] FACE_PROXY_URL not set, skip'); return; }
-  console.log('[face] start — proxy:', FACE_PROXY_URL, '| img:', state.img.nw+'x'+state.img.nh, '| UA:', navigator.userAgent);
-  faceRects = null;
-  var MAX=1024, iw=state.img.nw, ih=state.img.nh;
-  var scale=Math.min(1,MAX/Math.max(iw,ih));
-  var tw=Math.round(iw*scale), th=Math.round(ih*scale);
-  console.log('[face] resized to', tw+'x'+th, '(scale='+scale+')');
-  var tmp=document.createElement('canvas'); tmp.width=tw; tmp.height=th;
-  tmp.getContext('2d').drawImage(state.img.el,0,0,tw,th);
-  var b64=tmp.toDataURL('image/jpeg',0.85).split(',')[1];
-  console.log('[face] fetch POST', FACE_PROXY_URL, '— b64 length:', b64.length);
-  fetch(FACE_PROXY_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({image:b64})
-  })
-  .then(function(r){
-    console.log('[face] response status:', r.status, r.ok ? 'OK' : 'ERROR');
-    return r.ok ? r.json() : r.text().then(function(t){ return Promise.reject('HTTP '+r.status+': '+t); });
-  })
-  .then(function(rects){
-    console.log('[face] faces detected:', rects.length, rects);
-    var inv=1/scale;
-    faceRects=rects.map(function(r){
-      return{top:r.top*inv,left:r.left*inv,width:r.width*inv,height:r.height*inv};
-    });
+function initFaceMesh() {
+  if(typeof FaceMesh === 'undefined') return;
+  faceMesh = new FaceMesh({locateFile: function(f){
+    return 'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/' + f;
+  }});
+  faceMesh.setOptions({maxNumFaces:5, refineLandmarks:false, minDetectionConfidence:0.5, minTrackingConfidence:0.5});
+  faceMesh.onResults(function(results){
+    faceLandmarks = (results.multiFaceLandmarks && results.multiFaceLandmarks.length) ? results.multiFaceLandmarks : null;
     drawCanvas();
-  })
-  .catch(function(e){
-    console.error('[face] error:', e);
-    faceRects=null; drawCanvas();
   });
 }
 
+function detectFaces() {
+  if(!state.img || !faceMesh) return;
+  faceLandmarks = null;
+  faceMesh.send({image: state.img.el});
+}
+
 function buildFaceMask(vw,vh,s) {
-  if(!faceRects||!faceRects.length) return null;
-  var mask=new Float32Array(vw*vh); // 0.0~1.0 페더링 가중치
+  if(!faceLandmarks||!faceLandmarks.length) return null;
+  var iw=state.img.nw, ih=state.img.nh;
   var sx=vw/s.cw, sy=vh/s.ch;
-  var FEATHER=0.25; // 박스 크기의 25% 구간을 가장자리 페더링에 사용
-  faceRects.forEach(function(r){
-    var x0=Math.max(0,Math.round((r.left-s.ox)*sx));
-    var y0=Math.max(0,Math.round((r.top-s.oy)*sy));
-    var x1=Math.min(vw,Math.round((r.left+r.width-s.ox)*sx));
-    var y1=Math.min(vh,Math.round((r.top+r.height-s.oy)*sy));
-    var fw=Math.max(1,(x1-x0)*FEATHER);
-    var fh=Math.max(1,(y1-y0)*FEATHER);
-    for(var y=y0;y<y1;y++){
-      var dy=Math.min(y-y0,y1-1-y)/fh;
-      for(var x=x0;x<x1;x++){
-        var dx=Math.min(x-x0,x1-1-x)/fw;
-        var t=Math.min(Math.min(dx,dy),1.0);
-        var w=t*t*(3-2*t); // smoothstep: 가장자리 0 → 중심 1
-        var idx=y*vw+x;
-        if(w>mask[idx]) mask[idx]=w; // 얼굴 여러 개 겹칠 때 최댓값
-      }
-    }
+  var inner=document.createElement('canvas');
+  inner.width=vw; inner.height=vh;
+  var ic=inner.getContext('2d');
+  faceLandmarks.forEach(function(lms){
+    ic.fillStyle='white';
+    ic.beginPath();
+    FACE_OVAL_IDX.forEach(function(idx,i){
+      var px=(lms[idx].x*iw-s.ox)*sx;
+      var py=(lms[idx].y*ih-s.oy)*sy;
+      i===0?ic.moveTo(px,py):ic.lineTo(px,py);
+    });
+    ic.closePath();
+    ic.fill();
   });
+  var blurPx=Math.max(6,Math.round(Math.min(vw,vh)*0.03));
+  var outer=document.createElement('canvas');
+  outer.width=vw; outer.height=vh;
+  var oc=outer.getContext('2d');
+  oc.filter='blur('+blurPx+'px)';
+  oc.drawImage(inner,0,0);
+  var data=oc.getImageData(0,0,vw,vh).data;
+  var mask=new Float32Array(vw*vh);
+  for(var i=0;i<mask.length;i++) mask[i]=data[i*4]/255;
   return mask;
 }
 
@@ -490,7 +477,6 @@ function applyTone(d,t,faceMask) {
     var rv=r0+br*60+wa*30;
     var gv=g0+br*60;
     var bv=b0+br*60-wa*30;
-    // blend: 페더링 마스크 값(0.0~1.0), 마스크 없으면 피부색 판별로 폴백
     var blend=faceMask?faceMask[i>>2]:(isSkin(r0,g0,b0)?1.0:0.0);
     if(blend>0){
       if(sk){rv+=sk*50*blend;gv+=sk*50*blend;bv+=sk*50*blend;}
@@ -780,7 +766,7 @@ function confirmPw() {
   }
 }
 
-loadOrders(); renderCart(); setMode('customer');
+initFaceMesh(); loadOrders(); renderCart(); setMode('customer');
 </script>
 </body>
 </html>
