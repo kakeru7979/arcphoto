@@ -278,13 +278,15 @@ function handleFile(input) {
   var reader=new FileReader();
   reader.onload=function(e){
     var img=new Image();
-    img.onload=function(){
+    img.onload=async function(){
       state.img={el:img,nw:img.naturalWidth,nh:img.naturalHeight,src:e.target.result};
       state.ri=0; state.zoom=1; state.tone={br:0,wa:0,sk:0,so:0};
       var c=getCrop(img.naturalWidth,img.naturalHeight,1,1);
       state.ox=Math.floor((img.naturalWidth-c.cw)/2);
       state.oy=Math.floor((img.naturalHeight-c.ch)/2);
-      showEditor(); drawCanvas();
+      showEditor(); await drawCanvas();
+      var _c=document.getElementById('main-canvas'), _s=getSafe();
+      await detectFace(state.img.el,_c.width,_c.height,_s.ox,_s.oy,_s.cw,_s.ch);
     };
     img.src=e.target.result;
   };
@@ -344,8 +346,6 @@ async function drawCanvas() {
   var ctx=canvas.getContext('2d');
   var s=getSafe();
   ctx.drawImage(state.img.el,s.ox,s.oy,s.cw,s.ch,0,0,vw,vh);
-  // 얼굴 감지
-  await detectFace(state.img.el, vw, vh, s.ox, s.oy, s.cw, s.ch);
   var t=state.tone;
   if(t.br||t.wa||t.sk||t.so){
     var id=ctx.getImageData(0,0,vw,vh);
