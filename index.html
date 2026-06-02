@@ -360,6 +360,7 @@ function drawCanvas() {
 
 function detectFaces() {
   if(!state.img) { console.log('[face] no image, skip'); return; }
+  alert('[face] FACE_PROXY_URL = ' + (FACE_PROXY_URL || '(비어 있음)'));
   if(!FACE_PROXY_URL) { console.log('[face] FACE_PROXY_URL not set, skip'); return; }
   console.log('[face] start — proxy:', FACE_PROXY_URL, '| img:', state.img.nw+'x'+state.img.nh, '| UA:', navigator.userAgent);
   faceRects = null;
@@ -390,6 +391,7 @@ function detectFaces() {
   })
   .catch(function(e){
     console.error('[face] error:', e);
+    alert('[face] 얼굴 감지 오류: ' + e);
     faceRects=null; drawCanvas();
   });
 }
