@@ -1,0 +1,12 @@
+[build]
+  functions = "netlify/functions"
+  publish = "."
+
+[functions]
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/faceDetect"
+  to = "/.netlify/functions/faceDetect"
+  status = 200
+  force = true
