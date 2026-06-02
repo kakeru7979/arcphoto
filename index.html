@@ -386,7 +386,7 @@ function applyTone(d,t) {
 }
 
 // 슬라이더 동기화 (PC/모바일 공통)
-function syncTone() {
+async function syncTone() {
   var mobile=window.innerWidth<768;
   if(mobile){
     state.tone.br=+document.getElementById('ms-br').value;
@@ -400,7 +400,7 @@ function syncTone() {
     state.tone.so=+document.getElementById('ps-so').value;
   }
   updateToneUI();
-  drawCanvas();
+  await drawCanvas();
 }
 
 function updateToneUI() {
@@ -414,10 +414,10 @@ function updateToneUI() {
   });
 }
 
-function resetTone() {
+async function resetTone() {
   state.tone={br:0,wa:0,sk:0,so:0};
   resetSliders();
-  drawCanvas();
+  await drawCanvas();
 }
 
 function resetSliders() {
