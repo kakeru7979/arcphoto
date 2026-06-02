@@ -83,6 +83,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 #cart-count { font-size: 12px; color: #fff; background: #6BBFD4; border-radius: 20px; padding: 1px 8px; font-weight: 700; }
 #cart-items { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 2px; }
 #cart-items::-webkit-scrollbar { display: none; }
+#btn-complete { padding: 6px 18px; font-size: 13px; font-weight: 700; border-radius: 20px; cursor: pointer; border: none; background: #2A3A40; color: #fff; white-space: nowrap; margin-left: auto; }
+#name-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; display: none; align-items: center; justify-content: center; }
+#name-box { background: #FFFDF5; border-radius: 20px; padding: 32px 28px; width: 300px; max-width: 88vw; box-shadow: 0 8px 40px rgba(0,0,0,0.18); text-align: center; }
+#name-input { width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 12px; border: 1.5px solid #E8EEF0; font-size: 14px; outline: none; background: #fff; margin-bottom: 8px; }
+#name-input:focus { border-color: #6BBFD4; }
+#name-error { display: none; font-size: 12px; color: #FF4D6D; margin-bottom: 4px; }
 .cart-item { flex-shrink: 0; position: relative; }
 .cart-thumb { width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1.5px solid #E8EEF0; display: block; }
 .cart-ratio { font-size: 10px; color: #88A8B0; text-align: center; margin-top: 2px; }
@@ -95,7 +101,12 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .s-btn-dl { padding: 7px 16px; font-size: 12px; border-radius: 20px; cursor: pointer; border: none; background: #6BBFD4; color: #fff; font-weight: 700; }
 .s-btn-del { padding: 7px 16px; font-size: 12px; border-radius: 20px; cursor: pointer; border: 1px solid #FFB3BE; background: #FFF5F7; color: #FF4D6D; font-weight: 600; }
 .s-btn-ref { padding: 7px 16px; font-size: 12px; border-radius: 20px; cursor: pointer; border: 1px solid #E8EEF0; background: #FFFDF5; color: #88A8B0; }
-#seller-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+#seller-grid { display: block; }
+.order-group { margin-bottom: 28px; }
+.order-group-header { font-size: 14px; font-weight: 700; color: #2A3A40; margin-bottom: 12px; padding: 9px 14px; background: #E8F7FB; border-radius: 10px; display: flex; align-items: center; gap: 8px; }
+.order-group-name { flex: 1; }
+.order-group-cnt { font-size: 12px; color: #6BBFD4; font-weight: 600; }
+.group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .order-card { background: #FFFDF5; border-radius: 12px; border: 1px solid #E8EEF0; overflow: hidden; }
 .order-thumb { width: 100%; display: block; object-fit: cover; }
 .order-info { padding: 8px 10px; }
@@ -224,6 +235,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     <div id="cart-header">
       <span id="cart-label">담은 사진</span>
       <span id="cart-count">0</span>
+      <button id="btn-complete" onclick="tryComplete()">완료</button>
     </div>
     <div id="cart-items"></div>
   </div>
@@ -256,6 +268,20 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
     <div style="display:flex;gap:8px;margin-top:12px">
       <button onclick="closePwModal()" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #E8EEF0;background:#FFFDF5;color:#88A8B0;font-size:14px;font-weight:600;cursor:pointer">취소</button>
       <button onclick="confirmPw()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#6BBFD4;color:#fff;font-size:14px;font-weight:700;cursor:pointer">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 주문자 성함 모달 -->
+<div id="name-modal">
+  <div id="name-box">
+    <div style="font-size:16px;font-weight:800;color:#2A3A40;margin-bottom:6px">주문자 성함</div>
+    <div style="font-size:13px;color:#88A8B0;margin-bottom:20px">성함을 입력해 주세요</div>
+    <input type="text" id="name-input" placeholder="성함" onkeydown="if(event.key==='Enter')confirmName()">
+    <div id="name-error">주문자 성함을 입력해주세요</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button onclick="closeNameModal()" style="flex:1;padding:12px;border-radius:12px;border:1.5px solid #E8EEF0;background:#FFFDF5;color:#88A8B0;font-size:14px;font-weight:600;cursor:pointer">취소</button>
+      <button onclick="confirmName()" style="flex:1;padding:12px;border-radius:12px;border:none;background:#6BBFD4;color:#fff;font-size:14px;font-weight:700;cursor:pointer">확인</button>
     </div>
   </div>
 </div>
@@ -556,9 +582,20 @@ function renderSeller() {
   document.getElementById('btn-dl-all').style.display=cnt>0?'inline-block':'none';
   document.getElementById('btn-del-all').style.display=cnt>0?'inline-block':'none';
   document.getElementById('seller-empty').style.display=cnt===0?'block':'none';
-  var html='';
+  var groupMap={}, groupOrder=[];
   state.orders.forEach(function(item){
-    html+='<div class="order-card"><img class="order-thumb" src="'+item.thumb+'" style="aspect-ratio:'+item.w+'/'+item.h+'"><div class="order-info"><div class="order-ratio">'+item.ratio+' <span style="color:#88A8B0;font-weight:400">'+item.sub+'</span></div><div class="order-btns"><button class="btn-save" onclick="dlItem(\''+item.id+'\')">저장</button><button class="btn-del" onclick="delItem(\''+item.id+'\')">x</button></div></div></div>';
+    var key=item.customerName||'(미완료)';
+    if(!groupMap[key]){groupMap[key]=[];groupOrder.push(key);}
+    groupMap[key].push(item);
+  });
+  var html='';
+  groupOrder.forEach(function(name){
+    var items=groupMap[name];
+    html+='<div class="order-group"><div class="order-group-header"><span class="order-group-name">'+name+'</span><span class="order-group-cnt">'+items.length+'장</span></div><div class="group-grid">';
+    items.forEach(function(item){
+      html+='<div class="order-card"><img class="order-thumb" src="'+item.thumb+'" style="aspect-ratio:'+item.w+'/'+item.h+'"><div class="order-info"><div class="order-ratio">'+item.ratio+' <span style="color:#88A8B0;font-weight:400">'+item.sub+'</span></div><div class="order-btns"><button class="btn-save" onclick="dlItem(\''+item.id+'\')">저장</button><button class="btn-del" onclick="delItem(\''+item.id+'\')">x</button></div></div></div>';
+    });
+    html+='</div></div>';
   });
   document.getElementById('seller-grid').innerHTML=html;
 }
@@ -644,6 +681,27 @@ document.getElementById('upload-zone').addEventListener('click', function(e) {
     if(file) handleFile({files:[file]});
   });
 })();
+
+// 주문자 성함
+function tryComplete() {
+  var unnamed=state.orders.filter(function(i){return !i.customerName;});
+  if(unnamed.length===0){showToast('담은 사진이 없습니다');return;}
+  var modal=document.getElementById('name-modal');
+  modal.style.display='flex';
+  document.getElementById('name-input').value='';
+  document.getElementById('name-error').style.display='none';
+  setTimeout(function(){document.getElementById('name-input').focus();},50);
+}
+function closeNameModal(){
+  document.getElementById('name-modal').style.display='none';
+}
+function confirmName(){
+  var name=document.getElementById('name-input').value.trim();
+  if(!name){document.getElementById('name-error').style.display='block';return;}
+  state.orders.forEach(function(item){if(!item.customerName)item.customerName=name;});
+  saveOrders(); renderCart(); closeNameModal();
+  showToast('✓ 주문이 완료됐습니다');
+}
 
 // 판매자 비밀번호
 function trySellerMode() {
