@@ -42,7 +42,8 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 }
 
 /* 업로드 존 */
-#upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 480px; border: 1.5px dashed #E8EEF0; border-radius: 16px; padding: 48px 24px; background: #FFFDF5; text-align: center; }
+#upload-zone { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; max-width: 480px; border: 1.5px dashed #E8EEF0; border-radius: 16px; padding: 48px 24px; background: #FFFDF5; text-align: center; cursor: pointer; }
+#upload-zone.drag-over { border-color: #6BBFD4; background: #E8F7FB; }
 #upload-icon { width: 56px; height: 56px; border-radius: 16px; background: #6BBFD428; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
 #upload-title { font-size: 15px; font-weight: 700; color: #2A3A40; margin-bottom: 6px; }
 #upload-sub { font-size: 13px; color: #88A8B0; margin-bottom: 24px; }
@@ -570,21 +571,24 @@ var viewer=document.getElementById('viewer');
 var drag=null, pinch=null;
 
 viewer.addEventListener('pointerdown',function(e){
+  if(e.pointerType==='touch') return;
   e.currentTarget.setPointerCapture(e.pointerId);
   drag={sx:e.clientX,sy:e.clientY,ox:state.ox,oy:state.oy};
 });
 viewer.addEventListener('pointermove',function(e){
+  if(e.pointerType==='touch') return;
   if(!drag||!state.img) return;
   var s=getSafe(), sc=s.cw/viewer.clientWidth;
   var c=clampXY(drag.ox-(e.clientX-drag.sx)*sc,drag.oy-(e.clientY-drag.sy)*sc,state.img.nw,state.img.nh,s.cw,s.ch);
   state.ox=c.x; state.oy=c.y; drawCanvas();
 });
-viewer.addEventListener('pointerup',function(){drag=null;});
-viewer.addEventListener('pointercancel',function(){drag=null;});
+viewer.addEventListener('pointerup',function(e){if(e.pointerType==='touch') return; drag=null;});
+viewer.addEventListener('pointercancel',function(e){if(e.pointerType==='touch') return; drag=null;});
 viewer.addEventListener('touchstart',function(e){
+  e.preventDefault();
   if(e.touches.length===2){pinch={dist:Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY),zoom:state.zoom};drag=null;}
   else{drag={sx:e.touches[0].clientX,sy:e.touches[0].clientY,ox:state.ox,oy:state.oy};pinch=null;}
-},{passive:true});
+},{passive:false});
 viewer.addEventListener('touchmove',function(e){
   e.preventDefault();
   if(e.touches.length===2&&pinch){
@@ -602,6 +606,24 @@ viewer.addEventListener('wheel',function(e){
   state.zoom=Math.min(5,Math.max(1,parseFloat((state.zoom+(e.deltaY>0?-0.12:0.12)).toFixed(2)))); drawCanvas();
 },{passive:false});
 window.addEventListener('resize',function(){if(state.img)drawCanvas();});
+
+// upload-zone 전체 클릭 → 파일 선택창
+document.getElementById('upload-zone').addEventListener('click', function(e) {
+  if(e.target.id !== 'file-input') document.getElementById('file-input').click();
+});
+
+// upload-zone 드래그 앤 드롭
+(function(){
+  var uz=document.getElementById('upload-zone');
+  uz.addEventListener('dragover',function(e){e.preventDefault();uz.classList.add('drag-over');});
+  uz.addEventListener('dragleave',function(){uz.classList.remove('drag-over');});
+  uz.addEventListener('drop',function(e){
+    e.preventDefault();
+    uz.classList.remove('drag-over');
+    var file=e.dataTransfer.files&&e.dataTransfer.files[0];
+    if(file) handleFile({files:[file]});
+  });
+})();
 
 loadOrders(); renderCart(); setMode('customer');
 </script>
