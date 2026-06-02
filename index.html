@@ -104,10 +104,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .s-btn-ref { padding: 7px 16px; font-size: 12px; border-radius: 20px; cursor: pointer; border: 1px solid #E8EEF0; background: #FFFDF5; color: #88A8B0; }
 #seller-grid { display: block; }
 .order-group { margin-bottom: 28px; }
-.order-group-header { font-size: 14px; font-weight: 700; color: #2A3A40; margin-bottom: 12px; padding: 9px 14px; background: #E8F7FB; border-radius: 10px; display: flex; align-items: center; gap: 8px; }
+.order-group-header { font-size: 14px; font-weight: 700; color: #2A3A40; margin-bottom: 12px; padding: 9px 14px; background: #E8F7FB; border-radius: 10px; display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.order-group-toggle { font-size: 11px; color: #6BBFD4; flex-shrink: 0; }
 .order-group-name { flex: 1; }
 .order-group-cnt { font-size: 12px; color: #6BBFD4; font-weight: 600; }
+.group-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.g-btn-dl { padding: 4px 12px; font-size: 11px; border-radius: 16px; cursor: pointer; border: none; background: #6BBFD4; color: #fff; font-weight: 700; }
+.g-btn-del { padding: 4px 10px; font-size: 11px; border-radius: 16px; cursor: pointer; border: 1px solid #FFB3BE; background: #FFF5F7; color: #FF4D6D; font-weight: 600; }
 .group-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.group-grid.collapsed { display: none; }
 .order-card { background: #FFFDF5; border-radius: 12px; border: 1px solid #E8EEF0; overflow: hidden; }
 .order-thumb { width: 100%; display: block; object-fit: cover; }
 .order-info { padding: 8px 10px; }
@@ -297,6 +302,7 @@ var RATIOS = [
 ];
 var UPSCALE = 2;
 var state = { img:null, ri:0, ox:0, oy:0, zoom:1, tone:{br:0,wa:0,sk:0,so:0}, orders:[] };
+var groupOpen = {};
 var FACE_PROXY_URL = '/.netlify/functions/faceDetect';
 var faceRects = null;
 
@@ -592,7 +598,18 @@ function renderSeller() {
   var html='';
   groupOrder.forEach(function(name){
     var items=groupMap[name];
-    html+='<div class="order-group"><div class="order-group-header"><span class="order-group-name">'+name+'</span><span class="order-group-cnt">'+items.length+'장</span></div><div class="group-grid">';
+    var open=groupOpen[name]!==false;
+    var esc=name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    html+='<div class="order-group">';
+    html+='<div class="order-group-header" onclick="toggleGroup(\''+esc+'\')">';
+    html+='<span class="order-group-toggle">'+(open?'▼':'▶')+'</span>';
+    html+='<span class="order-group-name">'+name+'</span>';
+    html+='<span class="order-group-cnt">'+items.length+'장</span>';
+    html+='<div class="group-actions" onclick="event.stopPropagation()">';
+    html+='<button class="g-btn-dl" onclick="dlGroup(\''+esc+'\')">전체 저장</button>';
+    html+='<button class="g-btn-del" onclick="delGroup(\''+esc+'\')">전체 삭제</button>';
+    html+='</div></div>';
+    html+='<div class="group-grid'+(open?'':' collapsed')+'">';
     items.forEach(function(item){
       html+='<div class="order-card"><img class="order-thumb" src="'+item.thumb+'" style="aspect-ratio:'+item.w+'/'+item.h+'"><div class="order-info"><div class="order-ratio">'+item.ratio+' <span style="color:#88A8B0;font-weight:400">'+item.sub+'</span></div><div class="order-btns"><button class="btn-save" onclick="dlItem(\''+item.id+'\')">저장</button><button class="btn-del" onclick="delItem(\''+item.id+'\')">x</button></div></div></div>';
     });
@@ -601,8 +618,30 @@ function renderSeller() {
   document.getElementById('seller-grid').innerHTML=html;
 }
 
+function toggleGroup(name) {
+  groupOpen[name]=groupOpen[name]===false?true:false;
+  renderSeller();
+}
+
+function dlGroup(name) {
+  var items=state.orders.filter(function(i){return (i.customerName||'(미완료)')===name;});
+  items.forEach(function(item,i){setTimeout(function(){dlItem(item.id);},i*400);});
+}
+
+function delGroup(name) {
+  state.orders=state.orders.filter(function(i){return (i.customerName||'(미완료)')!==name;});
+  saveOrders(); renderCart(); renderSeller();
+}
+
 function dlItem(id) {
   var item=state.orders.find(function(i){return i.id===id;}); if(!item) return;
+  var name=item.customerName||'';
+  var groupItems=state.orders.filter(function(i){return (i.customerName||'')=== name;});
+  var idx=1;
+  for(var j=0;j<groupItems.length;j++){if(groupItems[j].id===id){idx=j+1;break;}}
+  var idxStr=('000'+idx).slice(-3);
+  var namePart=name?name+'_':'';
+  var filename='arcphoto_'+namePart+item.ratio.replace(':','x')+'_'+idxStr+'.png';
   var mobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if(mobile){
     var w=window.open();
@@ -611,10 +650,10 @@ function dlItem(id) {
   } else {
     var byteStr=atob(item.thumb.split(',')[1]);
     var ab=new ArrayBuffer(byteStr.length), ia=new Uint8Array(ab);
-    for(var i=0;i<byteStr.length;i++) ia[i]=byteStr.charCodeAt(i);
+    for(var k=0;k<byteStr.length;k++) ia[k]=byteStr.charCodeAt(k);
     var blob=new Blob([ab],{type:'image/png'}), url=URL.createObjectURL(blob);
     var a=document.createElement('a');
-    a.href=url; a.download='arcphoto_'+item.ratio.replace(':','x')+'_'+item.id+'.png';
+    a.href=url; a.download=filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function(){URL.revokeObjectURL(url);},1000);
   }
