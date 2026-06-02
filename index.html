@@ -250,6 +250,7 @@ var RATIOS = [
 ];
 var UPSCALE = 2;
 var state = { img:null, ri:0, ox:0, oy:0, zoom:1, tone:{br:0,wa:0,sk:0,so:0}, orders:[] };
+var faceRegions = [];
 
 function loadOrders() {
   try { var d=localStorage.getItem('arcphoto_orders'); if(d) state.orders=JSON.parse(d); } catch(e){}
@@ -284,7 +285,7 @@ function handleFile(input) {
       var c=getCrop(img.naturalWidth,img.naturalHeight,1,1);
       state.ox=Math.floor((img.naturalWidth-c.cw)/2);
       state.oy=Math.floor((img.naturalHeight-c.ch)/2);
-      showEditor(); await drawCanvas();
+      showEditor(); drawCanvas();
       var _c=document.getElementById('main-canvas'), _s=getSafe();
       await detectFace(state.img.el,_c.width,_c.height,_s.ox,_s.oy,_s.cw,_s.ch);
     };
@@ -331,7 +332,7 @@ function getSafe() {
   return {cw:cw,ch:ch,ox:s.x,oy:s.y};
 }
 
-async function drawCanvas() {
+function drawCanvas() {
   if(!state.img) return;
   var wrap=document.getElementById('viewer-wrap');
   var pad=32, bw=wrap.clientWidth-pad, bh=wrap.clientHeight-pad;
@@ -349,7 +350,7 @@ async function drawCanvas() {
   var t=state.tone;
   if(t.br||t.wa||t.sk||t.so){
     var id=ctx.getImageData(0,0,vw,vh);
-    applyTone(id.data,t,vw,vh);
+    applyTone(id.data,t,faceRegions);
     ctx.putImageData(id,0,0);
   }
   ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1;
@@ -386,7 +387,7 @@ function applyTone(d,t) {
 }
 
 // 슬라이더 동기화 (PC/모바일 공통)
-async function syncTone() {
+function syncTone() {
   var mobile=window.innerWidth<768;
   if(mobile){
     state.tone.br=+document.getElementById('ms-br').value;
@@ -400,7 +401,7 @@ async function syncTone() {
     state.tone.so=+document.getElementById('ps-so').value;
   }
   updateToneUI();
-  await drawCanvas();
+  drawCanvas();
 }
 
 function updateToneUI() {
@@ -414,10 +415,10 @@ function updateToneUI() {
   });
 }
 
-async function resetTone() {
+function resetTone() {
   state.tone={br:0,wa:0,sk:0,so:0};
   resetSliders();
-  await drawCanvas();
+  drawCanvas();
 }
 
 function resetSliders() {
