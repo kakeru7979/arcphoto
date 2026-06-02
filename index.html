@@ -75,7 +75,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 .m-row input[type=range] { flex: 1; accent-color: #6BBFD4; }
 .reset-btn { font-size: 12px; color: #88A8B0; background: none; border: none; cursor: pointer; padding: 0; }
 
-/* 장바구니 */
+/* 담은 사진 */
 #cart-bar { display: none; background: #FFFDF5; border-top: 1px solid #E8EEF0; padding: 10px 16px; flex-shrink: 0; }
 #cart-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
 #cart-label { font-size: 12px; font-weight: 700; }
@@ -214,7 +214,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #
 
   <div id="cart-bar">
     <div id="cart-header">
-      <span id="cart-label">장바구니</span>
+      <span id="cart-label">담은 사진</span>
       <span id="cart-count">0</span>
     </div>
     <div id="cart-items"></div>
@@ -493,11 +493,11 @@ function doCrop() {
   var r=RATIOS[state.ri];
   var item={id:uid(),thumb:dataUrl,ratio:r.label,sub:r.sub,w:outW,h:outH,ts:Date.now()};
   state.orders.push(item); saveOrders(); renderCart();
-  showToast('✓ 장바구니에 담겼습니다');
+  showToast('✓ 담은 사진에 추가됐습니다');
   resetImg();
 }
 
-// 장바구니
+// 담은 사진
 function renderCart() {
   var bar=document.getElementById('cart-bar');
   if(state.orders.length===0){bar.style.display='none';return;}
